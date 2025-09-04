@@ -1,0 +1,4 @@
+repository "Stadium Survival/Stadium Survival@18968291318547@cloud"
+  path "/"
+    br "/main"
+    co "/main"
