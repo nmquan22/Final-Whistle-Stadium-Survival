@@ -3,7 +3,12 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags: []
+  tags:
+  - Ball
+  - 'Player '
+  - 'Goal '
+  - 'GK '
+  - 'Boundary '
   layers:
   - Default
   - TransparentFX
@@ -11,11 +16,11 @@ TagManager:
   - 
   - Water
   - UI
-  - 
-  - 
-  - 
-  - 
-  - 
+  - Player
+  - Ball
+  - Goal
+  - Field
+  - UIRaycast
   - 
   - 
   - 
