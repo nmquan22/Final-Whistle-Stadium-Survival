@@ -107,35 +107,37 @@ public static class PartDFix
         halfWid = (xIsLong ? b.extents.z : b.extents.x);
     }
 
+    // THAY HÀM SpawnSide CŨ = BẢN NÀY
+    // FIX: dùng line đã có dấu; không nhân side*line nữa
     static void SpawnSide(Transform root, GameObject playerPrefab, GameObject gkPrefab,
                           Vector3 center, Vector3 longDir, Vector3 shortDir,
                           int side, float line, float row1, float row2, float lane, string matPath)
     {
-        // GK
+        // GK đứng đúng vạch gôn của 'line' (line < 0 = Home, line > 0 = Away)
         {
             var gk = PrefabUtility.InstantiatePrefab(gkPrefab) as GameObject;
             gk.transform.SetParent(root, false);
-            var pos = center + longDir * (side * line);
+            var pos = center + longDir * line;                         // <<— line có dấu
             gk.transform.position = pos;
             gk.transform.rotation = Quaternion.LookRotation((center - pos).normalized, Vector3.up);
-            SetupGK(gk, center, longDir, shortDir, side, halfLen: Mathf.Abs(line), halfWid: lane * 2f);
+            SetupGK(gk, center, longDir, shortDir, side, Mathf.Abs(line), lane * 2f);
         }
 
         var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
 
-        // 2 cầu thủ: row1 & row2, trái/phải
-        Vector3[] offs =
-        {
-            shortDir * (-lane),
-            shortDir * (+lane)
-        };
+        // 2 cầu thủ: tiến VÀO sân từ vạch gôn một đoạn row1/row2
+        // Công thức vào sân: line - sign(line) * row
+        Vector3[] lateral = { shortDir * (-lane), shortDir * (+lane) };
         float[] rows = { row1, row2 };
 
         for (int i = 0; i < 2; i++)
         {
             var p = PrefabUtility.InstantiatePrefab(playerPrefab) as GameObject;
             p.transform.SetParent(root, false);
-            var pos = center + longDir * (side * (line - Mathf.Sign(side) * rows[i])) + offs[i];
+
+            float alongLong = line - Mathf.Sign(line) * rows[i];       // <<— luôn vào trong sân
+            var pos = center + longDir * alongLong + lateral[i];
+
             p.transform.position = pos;
             p.transform.rotation = Quaternion.LookRotation((center - pos).normalized, Vector3.up);
 
@@ -144,30 +146,38 @@ public static class PartDFix
         }
     }
 
-    // GK cũ (goalZ) hay GK mới (InitAxis) đều support
+
+    // GK helper
     static void SetupGK(GameObject gk, Vector3 center, Vector3 longDir, Vector3 shortDir, int side, float halfLen, float halfWid)
     {
+        // Tìm script Goalkeeper
         var gkType = FindType("Goalkeeper");
         if (gkType == null) return;
         var comp = gk.GetComponent(gkType);
         if (comp == null) return;
 
+        // nếu script có field patrolWidth thì set lại
         var fPatrol = gkType.GetField("patrolWidth");
         if (fPatrol != null) fPatrol.SetValue(comp, Mathf.Max(6f, halfWid * 0.6f));
 
-        // bản GK “axis-aware”
+        // nếu script mới có hàm InitAxis thì gọi (cho “axis-aware” GK)
         var mInit = gkType.GetMethod("InitAxis");
-        if (mInit != null) { mInit.Invoke(comp, new object[] { center, longDir, shortDir, side, halfLen, halfWid }); return; }
+        if (mInit != null)
+        {
+            mInit.Invoke(comp, new object[] { center, longDir, shortDir, side, halfLen, halfWid });
+            return;
+        }
 
-        // fallback GK cũ: chỉnh về “goalZ” gần đúng theo longDir (nếu sân dọc Z)
+        // fallback: script cũ chỉ có field goalZ
         var fGoalZ = gkType.GetField("goalZ");
         if (fGoalZ != null)
         {
-            // nếu longDir ≈ +Z hoặc -Z → map vào goalZ; nếu theo X thì vẫn hoạt động tạm
             float signZ = Vector3.Dot(longDir, Vector3.forward) >= 0 ? 1f : -1f;
             fGoalZ.SetValue(comp, side * signZ * Mathf.Abs(halfLen));
         }
     }
+
+
 
     static Type FindType(string fullOrShort)
     {
