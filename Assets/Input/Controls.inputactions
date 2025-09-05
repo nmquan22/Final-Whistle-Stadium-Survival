@@ -1,0 +1,37 @@
+{
+    "name": "Controls",
+    "maps": [
+        { "name": "Gameplay", "actions": [
+            { "name": "Move", "type": "Value", "expectedControlType": "Vector2" },
+            { "name": "Look", "type": "Value", "expectedControlType": "Vector2" },
+            { "name": "Sprint", "type": "Button" },
+            { "name": "Kick", "type": "Button" },
+            { "name": "Pass", "type": "Button" },
+            { "name": "SwitchPlayer", "type": "Button" }
+        ],
+        "bindings": [
+            { "name": "WASD", "id": "1", "path": "2DVector", "action": "Move", "isComposite": true },
+            { "name": "up",   "path": "<Keyboard>/w", "action": "Move", "isPartOfComposite": true },
+            { "name": "down", "path": "<Keyboard>/s", "action": "Move", "isPartOfComposite": true },
+            { "name": "left", "path": "<Keyboard>/a", "action": "Move", "isPartOfComposite": true },
+            { "name": "right","path": "<Keyboard>/d", "action": "Move", "isPartOfComposite": true },
+
+            { "path": "<Gamepad>/leftStick", "action": "Move" },
+            { "path": "<Mouse>/delta", "action": "Look" },
+            { "path": "<Gamepad>/rightStick", "action": "Look" },
+
+            { "path": "<Keyboard>/leftShift", "action": "Sprint" },
+            { "path": "<Gamepad>/leftStickPress", "action": "Sprint" },
+
+            { "path": "<Mouse>/leftButton", "action": "Kick" },
+            { "path": "<Gamepad>/buttonSouth", "action": "Kick" },
+
+            { "path": "<Mouse>/rightButton", "action": "Pass" },
+            { "path": "<Gamepad>/buttonEast", "action": "Pass" },
+
+            { "path": "<Keyboard>/tab", "action": "SwitchPlayer" },
+            { "path": "<Gamepad>/rightShoulder", "action": "SwitchPlayer" }
+        ] }
+    ],
+    "controlSchemes": []
+}

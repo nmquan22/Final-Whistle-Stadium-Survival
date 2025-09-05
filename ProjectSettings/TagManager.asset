@@ -9,6 +9,9 @@ TagManager:
   - 'Goal '
   - 'GK '
   - 'Boundary '
+  - Player
+  - Goal
+  - GK
   layers:
   - Default
   - TransparentFX
@@ -21,8 +24,8 @@ TagManager:
   - Goal
   - Field
   - UIRaycast
-  - 
-  - 
+  - Player
+  - Ball
   - 
   - 
   - 
