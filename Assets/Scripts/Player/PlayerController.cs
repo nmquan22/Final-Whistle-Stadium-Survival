@@ -4,63 +4,67 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerController : MonoBehaviour
 {
-    [Header("Move")]
+    [Header("Move (Arcade)")]
     public float walkSpeed = 6f;
-    public float sprintSpeed = 9f;
-    public float acceleration = 20f;
-    public float deceleration = 30f;
-    public float rotationSpeed = 720f;
+    public float sprintSpeed = 9.5f;
+    public float rotationSpeed = 1000f;   // deg/s, cho cảm giác quay nhanh kiểu mobile soccer
+    public bool cameraRelative = true;    // di chuyển theo hướng camera
 
     [Header("Jump / Gravity")]
-    public float gravity = -20f;
+    public float gravity = -20f;          // âm (rơi xuống)
     public float jumpHeight = 1.1f;
-    public float groundedStick = -2f;
+    public float groundedStick = -2f;     // giữ dính đất nhẹ để không bồng bềnh
 
-    [Header("Options")]
-    public bool rotateByLook = true;
-    public bool strafeOnSideways = true;
+    [Header("Animator (optional)")]
+    public Animator animator;             // để trống -> tự tìm ở child (XBot)
+    public string speedParam = "Speed";   // parameter cho Blend Tree
 
-    CharacterController cc;
-    Vector2 moveInput, lookInput;
+    // input
+    Vector2 moveInput;    // x = A/D → X ; y = W/S → Z
     bool sprinting, jumpPressed;
-    Vector3 velocity;
+
+    // state
+    CharacterController cc;
+    Vector3 velocity;     // (x,z)=phẳng; y=độ cao
+
+    public float CurrentPlanarSpeed => new Vector3(velocity.x, 0f, velocity.z).magnitude;
 
     void Awake()
     {
         cc = GetComponent<CharacterController>();
+        if (!animator) animator = GetComponentInChildren<Animator>();
     }
 
-    // --- Input (PlayerInput -> Send Messages) ---
+    // ====== Input System callbacks ======
     public void OnMove(InputValue v) => moveInput = v.Get<Vector2>();
     public void OnSprint(InputValue v) => sprinting = v.isPressed;
-    public void OnLook(InputValue v) => lookInput = v.Get<Vector2>();
     public void OnJump(InputValue v) { if (v.isPressed) jumpPressed = true; }
 
     void Update()
     {
         float dt = Time.deltaTime;
 
-        // --- Camera-relative axes ---
-        Transform cam = Camera.main ? Camera.main.transform : null;
-        Vector3 fwd = cam ? cam.forward : Vector3.forward;
-        Vector3 right = cam ? cam.right : Vector3.right;
-        fwd.y = 0; right.y = 0; fwd.Normalize(); right.Normalize();
+        // ---- 1) Tính trục camera-relative trên mặt phẳng XZ ----
+        Vector3 fwd = Vector3.forward, right = Vector3.right;
+        if (cameraRelative && Camera.main)
+        {
+            var cam = Camera.main.transform;
+            fwd = cam.forward; right = cam.right;
+            fwd.y = 0f; right.y = 0f;
+            fwd.Normalize(); right.Normalize();
+        }
 
-        // --- Desired direction (input) ---
-        Vector3 in2 = new Vector3(moveInput.x, 0f, moveInput.y);   // x = A/D, z = W/S
-        Vector3 wishDir = right * in2.x + fwd * in2.z;
-        if (wishDir.sqrMagnitude > 1e-4f) wishDir.Normalize();
+        // ---- 2) Map Vector2 -> XZ (x giữ nguyên, y -> z) ----
+        Vector3 inputDir = new Vector3(moveInput.x, 0f, moveInput.y);   // XZ plane
+        Vector3 wishDir = right * inputDir.x + fwd * inputDir.z;
+        float inputMag = Mathf.Clamp01(inputDir.magnitude);
+        if (wishDir.sqrMagnitude > 0.0001f) wishDir.Normalize();
 
-        // --- Target speed ---
-        float targetSpeed = (sprinting ? sprintSpeed : walkSpeed) * Mathf.Clamp01(in2.magnitude);
-        Vector3 targetPlanar = wishDir * targetSpeed;
+        // ---- 3) Arcade speed (không inertia: cầm là chạy, nhả là dừng) ----
+        float speed = (sprinting ? sprintSpeed : walkSpeed) * inputMag;
+        Vector3 planar = wishDir * speed;
 
-        // --- Smooth acceleration / deceleration ---
-        Vector3 currentPlanar = new Vector3(velocity.x, 0, velocity.z);
-        float a = (targetPlanar.magnitude > currentPlanar.magnitude) ? acceleration : deceleration;
-        currentPlanar = Vector3.MoveTowards(currentPlanar, targetPlanar, a * dt);
-
-        // --- Gravity + Jump ---
+        // ---- 4) Jump & Gravity (dùng CharacterController.Move) ----
         if (cc.isGrounded)
         {
             if (velocity.y < 0f) velocity.y = groundedStick;
@@ -68,6 +72,7 @@ public class PlayerController : MonoBehaviour
             {
                 velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
                 jumpPressed = false;
+                // animator?.SetTrigger("Jump"); // nếu bạn có state Jump
             }
         }
         else
@@ -75,28 +80,24 @@ public class PlayerController : MonoBehaviour
             velocity.y += gravity * dt;
         }
 
-        // --- Apply velocity ---
-        velocity.x = currentPlanar.x;
-        velocity.z = currentPlanar.z;
+        // ---- 5) Gộp vận tốc & Move ----
+        velocity.x = planar.x;
+        velocity.z = planar.z;
         cc.Move(velocity * dt);
 
-        // --- Rotation ---
-        Vector3 faceDir = currentPlanar;
-        if (rotateByLook && lookInput.sqrMagnitude > 0.01f && cam != null)
+        // ---- 6) Xoay mặt theo hướng chạy (cực responsive) ----
+        if (wishDir.sqrMagnitude > 0.001f)
         {
-            Vector3 lookForward = cam.forward;
-            lookForward.y = 0; lookForward.Normalize();
-            faceDir = Vector3.Slerp(faceDir.sqrMagnitude > 1e-4f ? faceDir : lookForward, lookForward, 0.5f);
+            Quaternion targetRot = Quaternion.LookRotation(wishDir);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, rotationSpeed * dt);
         }
 
-        // Nếu chỉ nhấn ngang (A/D) và bật chế độ strafe thì không xoay
-        bool onlySideways = Mathf.Abs(in2.x) > 0.01f && Mathf.Abs(in2.z) < 0.01f;
-        if (onlySideways && strafeOnSideways) return;
-
-        if (faceDir.sqrMagnitude > 1e-4f)
+        // ---- 7) (Optional) cập nhật Animator Speed cho BlendTree ----
+        if (animator && !string.IsNullOrEmpty(speedParam))
         {
-            Quaternion targetRot = Quaternion.LookRotation(faceDir);
-            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, rotationSpeed * dt);
+            float planarSpeed = planar.magnitude;        // dùng speed mục tiêu cho mượt
+            if (planarSpeed < 0.05f) planarSpeed = 0f;   // deadzone
+            animator.SetFloat(speedParam, planarSpeed, 0.08f, dt); // damping nhẹ
         }
     }
 }

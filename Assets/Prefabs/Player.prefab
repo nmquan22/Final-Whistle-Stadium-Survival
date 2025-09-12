@@ -127,6 +127,9 @@ GameObject:
   - component: {fileID: 1733741803485129398}
   - component: {fileID: 7579088682175053368}
   - component: {fileID: 5598343358446219461}
+  - component: {fileID: 8513645133806030423}
+  - component: {fileID: 1952728530947966686}
+  - component: {fileID: 9210219594091356983}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -257,3 +260,53 @@ MonoBehaviour:
   m_DefaultActionMap: Gameplay
   m_SplitScreenIndex: -1
   m_Camera: {fileID: 0}
+--- !u!114 &8513645133806030423
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7947681679384233585}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6ff90a3048d0574d8d819c2a09dbf83, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  walkSpeed: 6
+  sprintSpeed: 9
+  acceleration: 20
+  deceleration: 30
+  rotationSpeed: 720
+  gravity: -20
+  jumpHeight: 1.1
+  groundedStick: -2
+  rotateByLook: 1
+  strafeOnSideways: 1
+--- !u!114 &1952728530947966686
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7947681679384233585}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b6f5e2b77dc3824d9b17704357d53a7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  interactRadius: 2.2
+  kickPower: 10
+  passPower: 7
+  kickPoint: {fileID: 3024486847666119585}
+--- !u!114 &9210219594091356983
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7947681679384233585}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 610f73fc8feefc042b7af90f47200d72, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
