@@ -49,7 +49,7 @@ public class BallInteractor : MonoBehaviour
     void Update()
     {
         if (Input.GetMouseButtonDown(0)) DoKick();
-        if (Input.GetKeyDown(KeyCode.E)) DoPass();
+        if (Input.GetKeyDown(KeyCode.J)) DoPass();
         if (Input.GetKey(KeyCode.C)) // đổi từ Shift sang phím C
         {
             DoDribble(true);
