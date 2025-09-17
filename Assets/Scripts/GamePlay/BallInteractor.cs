@@ -1,33 +1,39 @@
 ﻿using UnityEngine;
 
+[RequireComponent(typeof(CharacterController))]
 public class BallInteractor : MonoBehaviour
 {
-    [Header("Dribble Follow")]
-    public float holdDistance = 0.6f;       
-    public float followGain = 12f;        
-    public float maxAccel = 40f;        
-    public float moveThreshold = 0.15f;     
-    CharacterController _cc;               
+    [Header("Dribble Follow (PD)")]
+    public float holdDistance = 0.6f;      // điểm giữ trước mũi chân
+    public float followKp = 14f;           // Proportional gain (tăng/giảm để bám nhanh/chậm)
+    public float followKd = 2.5f;          // Derivative gain (giảm rung)
+    public float maxAccel = 45f;           // giới hạn gia tốc bám
+    public float moveThreshold = 0.12f;    // chỉ dribble khi đang di chuyển
 
     [Header("Refs")]
-    public Transform kickPoint;               // kéo empty "KickPoint" vào đây
-    public BallController overrideBall;       
-    public Animator animator;                 
+    public Transform kickPoint;            // empty trên chân
+    public BallController overrideBall;
+    public Animator animator;
 
     [Header("Interaction")]
-    public float interactRadius = 2.0f;       
-    public float kickForce = 12f;             
-    public float passForce = 9f;              
-    public float dribbleForce = 2.2f;         
-    public float dribbleInterval = 0.75f;     
-    public LayerMask ballMask = ~0;           
+    public float interactRadius = 2.0f;
+    public float kickForce = 12f;
+    public float kickLoft = 0.6f;          // bổng nhẹ khi sút thường
+    public float kickSpin = 0.0f;          // xoáy sút thường
+    public float passForce = 9f;
+    public float passLoft = 0.3f;
+    public float passSpin = 0.0f;
+    public float tapWhileDribble = 0.4f;   // chạm nhịp nhỏ
+    public float dribbleTapInterval = 0.35f;
+    public LayerMask ballMask = ~0;
 
     [Header("Aiming")]
-    public bool passTowardCamera = true;      
-    public Transform passTarget;             
+    public bool passTowardCamera = true;
+    public Transform passTarget;
 
-    float _dribTimer;
+    CharacterController _cc;
     BallController _ball;
+    float _dribTimer;
 
     void Reset()
     {
@@ -35,29 +41,32 @@ public class BallInteractor : MonoBehaviour
         {
             kickPoint = new GameObject("KickPoint").transform;
             kickPoint.SetParent(transform, false);
-            kickPoint.localPosition = new Vector3(0, 0.25f, 0.5f);
+            kickPoint.localPosition = new Vector3(0, 0.2f, 0.45f);
         }
     }
 
     void Awake()
     {
         if (!animator) animator = GetComponentInChildren<Animator>();
-        _cc = GetComponent<CharacterController>();   
-
+        _cc = GetComponent<CharacterController>();
     }
 
     void Update()
     {
-        if (Input.GetMouseButtonDown(0)) DoKick();
-        if (Input.GetKeyDown(KeyCode.J)) DoPass();
-        if (Input.GetKey(KeyCode.C)) // đổi từ Shift sang phím C
-        {
-            DoDribble(true);
-        }
-        else
-        {
-            DoDribble(false);
-        }
+        // Input chỉ trigger hành động; tính lực để FixedUpdate xử lý
+        if (Input.GetMouseButtonDown(0)) _queuedKick = true;
+        if (Input.GetKeyDown(KeyCode.J)) _queuedPass = true;
+
+        _holding = Input.GetKey(KeyCode.C); // giữ C để dribble
+    }
+
+    bool _queuedKick, _queuedPass, _holding;
+
+    void FixedUpdate()
+    {
+        if (_queuedKick) { DoKick(); _queuedKick = false; }
+        if (_queuedPass) { DoPass(); _queuedPass = false; }
+        DoDribble(_holding);
     }
 
     public void DoKick()
@@ -65,9 +74,12 @@ public class BallInteractor : MonoBehaviour
         var ball = GetBallInRange();
         if (!ball) return;
 
-        Vector3 dir = (ball.transform.position - KickOrigin()).normalized;
-        dir.y = 0f;
-        ball.Kick(dir * kickForce);
+        // hướng từ chân → bóng rồi đẩy theo hướng nhìn phẳng của player
+        Vector3 toBall = (ball.transform.position - KickOrigin());
+        Vector3 dirFlat = transform.forward; dirFlat.y = 0f; dirFlat.Normalize();
+        Vector3 impulse = dirFlat * kickForce;
+
+        ball.Kick(impulse, kickLoft, kickSpin);
         if (animator) animator.SetTrigger("Kick");
     }
 
@@ -77,7 +89,9 @@ public class BallInteractor : MonoBehaviour
         if (!ball) return;
 
         Vector3 dir = AimDirection();
-        ball.Kick(dir * passForce);
+        Vector3 impulse = dir * passForce;
+
+        ball.Kick(impulse, passLoft, passSpin);
         if (animator) animator.SetTrigger("Pass");
     }
 
@@ -86,28 +100,30 @@ public class BallInteractor : MonoBehaviour
         if (!isHolding) { _dribTimer = 0f; return; }
         var ball = GetBallInRange(); if (!ball) return;
 
-        // chỉ dribble khi player đang di chuyển
-        Vector3 planarVel = _cc ? new Vector3(_cc.velocity.x, 0, _cc.velocity.z) : Vector3.zero;
+        Vector3 planarVel = _cc ? new Vector3(_cc.velocity.x, 0f, _cc.velocity.z) : Vector3.zero;
         if (planarVel.magnitude < moveThreshold) return;
 
-        // điểm giữ bóng trước mũi chân
         Vector3 holdPoint = KickOrigin() + transform.forward * holdDistance;
-        Vector3 toTarget = (holdPoint - ball.transform.position);
-        toTarget.y = 0f;
+        Vector3 ePos = (holdPoint - ball.transform.position); ePos.y = 0f;
 
-        // vận tốc mong muốn để bóng về điểm giữ
-        Vector3 desiredVel = toTarget * followGain;                 
-        Vector3 velError = desiredVel - ball.rb.velocity;         // cần Rigidbody public trong BallController
-        Vector3 accel = Vector3.ClampMagnitude(velError, maxAccel);
+        // PD: a = Kp*e + Kd*(v_desired - v_ball)
+        Vector3 vDesired = ePos * followKp;
+        Vector3 vErr = vDesired - ball.rb.velocity;
+        Vector3 accel = vErr * followKd;
+
+        // hạn chế bạo lực
+        accel = Vector3.ClampMagnitude(accel, maxAccel);
+        accel.y = Mathf.Clamp(accel.y, -10f, 10f);
 
         ball.rb.AddForce(accel, ForceMode.Acceleration);
 
-        // (tuỳ chọn) chạm nhịp nhỏ để đẩy bóng lăn phía trước một tí
-        _dribTimer -= Time.deltaTime;
+        // Tap nhỏ theo nhịp để bóng luôn lăn phía trước
+        _dribTimer -= Time.fixedDeltaTime;
         if (_dribTimer <= 0f)
         {
-            ball.Kick(transform.forward * 0.5f); // impulse rất nhỏ
-            _dribTimer = 0.35f;
+            Vector3 tap = transform.forward * tapWhileDribble;
+            ball.Kick(tap, 0f, 0f);
+            _dribTimer = dribbleTapInterval;
         }
     }
 
@@ -115,7 +131,7 @@ public class BallInteractor : MonoBehaviour
     BallController GetBallInRange()
     {
         if (overrideBall) return overrideBall;
-        if (_ball && Vector3.SqrMagnitude(_ball.transform.position - transform.position) <= interactRadius * interactRadius)
+        if (_ball && (_ball.transform.position - transform.position).sqrMagnitude <= interactRadius * interactRadius)
             return _ball;
 
         float best = float.MaxValue; BallController bestBall = null;
@@ -133,23 +149,24 @@ public class BallInteractor : MonoBehaviour
 
     Vector3 KickOrigin()
     {
-        return kickPoint ? kickPoint.position : (transform.position + transform.forward * 0.5f + Vector3.up * 0.2f);
+        return kickPoint ? kickPoint.position
+            : (transform.position + transform.forward * 0.45f + Vector3.up * 0.2f);
     }
 
     Vector3 AimDirection()
     {
         if (passTarget)
         {
-            Vector3 d = (passTarget.position - KickOrigin()); d.y = 0f;
-            if (d.sqrMagnitude > 0.001f) return d.normalized;
+            Vector3 d = passTarget.position - KickOrigin(); d.y = 0f;
+            if (d.sqrMagnitude > 1e-4f) return d.normalized;
         }
         if (passTowardCamera && Camera.main)
         {
             Vector3 d = Camera.main.transform.forward; d.y = 0f;
-            if (d.sqrMagnitude > 0.001f) return d.normalized;
+            if (d.sqrMagnitude > 1e-4f) return d.normalized;
         }
-        var f = transform.forward; f.y = 0f;
-        return f.sqrMagnitude > 0.001f ? f.normalized : Vector3.forward;
+        Vector3 f = transform.forward; f.y = 0f;
+        return f.sqrMagnitude > 1e-4f ? f.normalized : Vector3.forward;
     }
 
     void OnDrawGizmosSelected()
