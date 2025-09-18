@@ -15,7 +15,7 @@ public class GameFlow : MonoBehaviour
     // === Scene names ===
     public const string START_SCENE = "StartScene";
     public const string MODE_SCENE = "ModeSelectScene";
-    public const string GAME_SCENE = "GameScene";
+    public const string GAME_SCENE = "Stadium";
     public const string END_SCENE = "EndScene";
 
 
@@ -43,6 +43,11 @@ public class GameFlow : MonoBehaviour
     public int LastHomeScore { get; private set; }
     public int LastAwayScore { get; private set; }
     public bool PlayerWonLast { get; private set; }
+
+    // === Weather (StartScene picks, used later in match) ===
+    public enum WeatherKind { Clear, Rain, Snow, Foggy, Night }
+    public WeatherKind SelectedWeather = WeatherKind.Clear;
+    [UnityEngine.Range(0f, 1f)] public float TimeOfDay01 = 0.5f; // 0 = đêm, 0.5 = trưa
 
 
     void Awake()

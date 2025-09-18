@@ -1,15 +1,15 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class StartMenu : MonoBehaviour
 {
-    public void Play()
+    public StartWeatherUI weatherUI;
+
+    public void Play() 
     {
-        SceneManager.LoadScene(GameFlow.MODE_SCENE);
+        if (weatherUI) weatherUI.CommitToGameFlow();
+        UnityEngine.SceneManagement.SceneManager.LoadScene(GameFlow.GAME_SCENE);
     }
 
-    public void Quit()
-    {
-        Application.Quit();
-    }
+    public void Quit() { Application.Quit(); }
 }
