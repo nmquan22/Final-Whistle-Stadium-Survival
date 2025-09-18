@@ -2106,7 +2106,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   holdDistance: 0.6
-  followGain: 12
+  followKp: 14
+  followKd: 2.5
   maxAccel: 40
   moveThreshold: 0.15
   kickPoint: {fileID: 2872289495924243390}
@@ -2114,9 +2115,13 @@ MonoBehaviour:
   animator: {fileID: 0}
   interactRadius: 2
   kickForce: 12
+  kickLoft: 0.6
+  kickSpin: 0
   passForce: 9
-  dribbleForce: 2.2
-  dribbleInterval: 0.75
+  passLoft: 0.3
+  passSpin: 0
+  tapWhileDribble: 0.4
+  dribbleTapInterval: 0.35
   ballMask:
     serializedVersion: 2
     m_Bits: 4294967295
@@ -2204,7 +2209,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5556612069995984681}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e3314e0fc7aa1a348b38991761e92cd3, type: 3}
   m_Name: 

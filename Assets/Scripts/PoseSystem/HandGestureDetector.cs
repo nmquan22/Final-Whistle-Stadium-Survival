@@ -1,31 +1,62 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
-using PoseSystem;   
+using PoseSystem;
 
 public enum HandGesture { None, Open, Fist, Pinch, TwoPinch, Point }
 
 public class HandGestureDetector : MonoBehaviour
 {
-    [Header("Source (drag TFLiteHandSource here)")]
+    [Header("Source (drag HandSource here)")]
     public MonoBehaviour sourceBehaviour;
     IHandSource src;
 
     [Header("Thresholds")]
     [Range(0, 1)] public float minOverallScore = 0.2f;
-    [Tooltip("Khoảng cách thumb-index (chuẩn hoá) để coi là pinch")]
     public float pinchThresh = 0.06f;
-    [Tooltip("Cỡ nắm tay: tips gần wrist")]
     public float fistCurlThresh = 0.035f;
-    [Tooltip("Index dài hơn middle để coi là point")]
     public float pointSpread = 0.02f;
 
-    void Awake() { src = sourceBehaviour as IHandSource; }
+    [Header("Debug")]
+    public bool logState = true;              // bật để thấy g=Pinch/Point...
+    public bool logFailReasons = true;        // bật để biết vì sao TryGet() fail
+    [Range(0.05f, 2f)] public float logInterval = 0.3f;
+    float lastLogTime = -999f;
+    HandGesture lastLogged = HandGesture.None;
 
-    // API chính: trả gesture + palm (wrist) + hướng index
+    void Awake() { src = sourceBehaviour as IHandSource; }
+    public void SetSource(MonoBehaviour m) { sourceBehaviour = m; src = m as IHandSource; }
+
     public bool TryGet(out HandGesture g, out Vector2 palm, out Vector2 indexDir)
     {
         g = HandGesture.None; palm = Vector2.zero; indexDir = Vector2.right;
-        if (src == null || !src.TryGetHand(out var kps, out var s) || s < minOverallScore || kps.Count < 21) return false;
+
+        if (src == null)
+        {
+            if (logFailReasons && Time.time - lastLogTime > 0.5f)
+            { Debug.LogWarning("[HandGesture] FAIL: SourceBehaviour is null (drag PythonHandSource/TFLiteHandSource vào)."); lastLogTime = Time.time; }
+            return false;
+        }
+
+        if (!src.TryGetHand(out var kps, out var s))
+        {
+            if (logFailReasons && Time.time - lastLogTime > 0.5f)
+            { Debug.LogWarning("[HandGesture] FAIL: Source has no frame (chưa nhận landmark từ server/camera)."); lastLogTime = Time.time; }
+            return false;
+        }
+
+        if (s < minOverallScore)
+        {
+            if (logFailReasons && Time.time - lastLogTime > 0.5f)
+            { Debug.LogWarning($"[HandGesture] FAIL: score {s:F2} < min {minOverallScore:F2}"); lastLogTime = Time.time; }
+            return false;
+        }
+
+        if (kps == null || kps.Count < 21)
+        {
+            if (logFailReasons && Time.time - lastLogTime > 0.5f)
+            { Debug.LogWarning($"[HandGesture] FAIL: keypoints count = {(kps == null ? 0 : kps.Count)}"); lastLogTime = Time.time; }
+            return false;
+        }
 
         Vector2 L(int i) => new(kps[i].x, kps[i].y);
 
@@ -54,6 +85,13 @@ public class HandGestureDetector : MonoBehaviour
         else if (fist) g = HandGesture.Fist;
         else if (point) g = HandGesture.Point;
         else g = HandGesture.Open;
+
+        if (logState && (g != lastLogged || Time.time - lastLogTime >= logInterval))
+        {
+            Debug.Log($"[HandGesture] g={g} palm=({palm.x:F2},{palm.y:F2}) idx=({indexDir.x:F2},{indexDir.y:F2}) " +
+                      $"dTI={dTI:F3} dTM={dTM:F3} avgTipW={avgTipW:F3} score={s:F2}");
+            lastLogged = g; lastLogTime = Time.time;
+        }
 
         return true;
     }
